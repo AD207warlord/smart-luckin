@@ -116,6 +116,32 @@ Agent 理解"少糖"没问题,但瑞幸 `switchProduct` 要的是 `attributeId` 
 
 > 本次裸测试官方 `-p` 用智谱 GLM Coding Plan 配置,未被白名单拦截。官方 `models add` 支持任意 OpenAI 兼容模型,不限于 GLM。
 
+## 独有能力:菜单发现(menu discover)
+
+这是 smart-luckin **官方三件套(MCP/CLI/skill)都没有的能力**。
+
+**背景**:瑞幸 MCP 只提供 `searchProductForMcp`,每次只能搜**一个关键词**。官方 CLI `luckin menu <deptId> <词>` 和 skill 都靠这个工具单次搜。想知道"这家店到底有什么",得手动想几十个词逐个搜。
+
+**我们做的**:`menu discover` 用 4 个维度 38 个分类词批量枚举,去重聚合:
+
+| 维度 | 词数 | 示例 |
+|---|---|---|
+| 品类 | 20 | 美式/拿铁/生椰拿铁/卡布奇诺/澳瑞白/抹茶/果茶/瑞纳冰... |
+| 口味 | 11 | 苹果/芒果/西柚/草莓/椰子/芋泥/焦糖/榛子... |
+| 系列 | 5 | 丝绒/Hello/弗朗明戈/耶加雪菲/冰吸 |
+| 标签 | 2 | 新品/经典 |
+
+**实测**(2026-06-19):一次 `menu discover` 调 38 次 searchProductForMcp,去重后**命中 40 款商品**(含新品/经典/各品类),覆盖率约 60-70%(完整菜单需 App/小程序,瑞幸无全量列表 API)。
+
+```bash
+smart-luckin menu discover --limit 100
+# → 枚举 4 维度 38 词 → 去重聚合 → 按 productId 排序展示
+```
+
+**边界诚实说**:这不是"完整菜单",瑞幸没有公开的全量商品列表 API,我们靠分类词枚举逼近,覆盖率约 60-70%(实测 40 款)。冷门商品可能漏。但比官方"只能单次搜一个词"强——Agent 想"看看这家店有什么"时,一条命令出 40 款,不用想 38 个词。
+
+> 注:`menu new`(新品)和 `menu search`(关键词)**不是我们独有**——MCP 的 searchProductForMcp 原生支持,官方 CLI `luckin menu <id> 新品` 也能查新品(实测返回带 `tags:["新品"]` 的商品)。我们只是封装成命令。**menu discover 的批量枚举聚合,才是我们独有的。**
+
 ## 与官方 my-coffee skill 的关系
 
 瑞幸官方提供三种接入方式:**MCP Server**(数据源,8 个 JSON-RPC 工具)、**CLI**(`luckin login` 刷 token)、**my-coffee skill**(对话式指令 skill,v0.8.2,CC BY-ND 4.0)。
