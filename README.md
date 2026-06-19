@@ -1,11 +1,11 @@
 # smart-luckin
 
-> ☕ **基于瑞幸官方 MCP/CLI 之上的点单封装** — 把官方工具链的踩坑经验,固化成装完即用的命令行。
->
-> 瑞幸官方 2026-06 上线 AI 开放平台,提供 MCP Server(8 个 JSON-RPC 工具)+ CLI(`luckin login` 刷 token)+ my-coffee skill 三件套。本 CLI **不是替代官方,是建立在官方 MCP 数据源之上**的编排封装层:复用官方 token 和 endpoint,把裸调 MCP 要踩的坑(operation 枚举/skuCode 链式/二维码字段/中文编码/定位...)预先固化进代码。
+> ☕ **Agent 和瑞幸 MCP 之间的转译层** — 把 Agent 的宽泛意图,转译成瑞幸硬接口能收的精确参数。
+
+> 瑞幸官方 2026-06 上线 AI 开放平台,提供 MCP Server(8 个 JSON-RPC 工具)+ CLI(`luckin login` 刷 token)+ my-coffee skill 三件套。本 CLI **不是替代官方,是建立在官方 MCP 数据源之上**的转译层:复用官方 token 和 endpoint,把裸调 MCP 要踩的坑(operation 枚举/skuCode 链式/二维码字段/中文编码/定位...)预先转译固化。
 
 > **📦 包名/仓库名/命令名统一 `smart-luckin`**。
-> 命令名刻意避开瑞幸官方 CLI(`luckin`,用于 `luckin login` 刷 token)的冲突。`pip install smart-luckin` 后用 `smart-luckin` 调用。
+> 命令名刻意避开瑞幸官方 CLI(`luckin`,用于 `luckin login` 刷 token)。`pip install smart-luckin` 后用 `smart-luckin` 调用。
 > **Python import 名仍是 `luckin`**(内部模块结构),用户感知不到。
 
 ---
@@ -107,7 +107,7 @@ Agent 理解"少糖"没问题,但瑞幸 `switchProduct` 要的是 `attributeId` 
 | **能完成?** | 要外部补转译/定位/踩坑 | ✅ | ✅ |
 | **LLM token** | 外部 Agent 自行转译 | 运行时烧(实测输出 72 万字符) | Agent 理解意图(单轮)+ 转译层零 LLM token |
 | **耗时** | 看 Agent | **~2 分钟** | **<5 秒** |
-| **结果** | — | 3 选项(2 个同款凑数) | 4 选项(不同风格) |
+| **结果** | — | 3 选项(含同款不同杯型) | 4 选项(不同风格) |
 
 **不夸大也不过谦**:
 - 官方 `-p` 的优势:**一体化**(内置 LLM,配个模型 key 就能用,不依赖外部 Agent)。LLM 可配任意 OpenAI 兼容模型,不绑定厂商。适合没有 Agent 的纯终端环境。
@@ -194,15 +194,9 @@ smart-luckin menu discover --limit 100
 
 > 20 位订单号的 Overflow 是瑞幸 MCP 网关的 bug(应该用字符串解析 orderId 而非 Number)。本 CLI 对此给出清晰错误提示,不会崩溃。
 
-### ⚠️ 与官方文档的一处差异:支付二维码
+### ⚠️ 与官方文档的一处差异
 
-官方 my-coffee skill v0.8.2(SKILL.md 第 112/187/190 行)**三次强调只能用 `payOrderQrCodeUrl`,禁止 `payOrderUrl`**。
-
-本 CLI 做了相反选择:**只用 `payOrderUrl` deeplink**。基于 2026-06-19 实测:
-- `payOrderUrl`(deeplink `weixin://wxpay/bizpayurl?pr=xxx`)→ 微信扫码**一步进支付页** ✅
-- `payOrderQrCodeUrl`(瑞幸中转页)→ 扫码报**"非法链接"** ❌
-
-原因未确认(可能官方文档过时、或瑞幸后端调整、或测试环境差异)。**如果你用本 CLI 扫码失败,请提 issue 反馈**,便于复核这个判断。
+官方 my-coffee skill v0.8.2 三次强调只能用 `payOrderQrCodeUrl`。本 CLI 做了相反选择(理由见上文「核心价值 3」),基于 2026-06-19 实测:`payOrderQrCodeUrl` 扫码报"非法链接",`payOrderUrl` 一步进支付。原因未确认(可能官方文档过时/后端调整/环境差异),如扫码失败请提 issue。
 
 ### 法律说明
 
@@ -351,7 +345,7 @@ smart-luckin order cancel <orderId> [-y]    # 取消订单(未支付时最干净
 
 | 级别 | 条件 | 行为 |
 |---|---|---|
-| ✅ ok | 萝关门 >30min | 静默放行 |
+| ✅ ok | 距关门 >30min | 静默放行 |
 | ⚠️ warn | 距关门 10~30min | 提醒 + **二次确认**(即使 `-y` 也要确认) |
 | 🚨 danger | 距关门 <10min 或不足制作提前量(默认 10min) | 默认拒绝;`-y` 强制时**二次确认** |
 | ❌ closed | 未营业/已打烊 | 硬拒绝(无法下单) |
@@ -375,7 +369,7 @@ smart-luckin menu new                       # 查新品
 smart-luckin menu discover [--limit N]      # 四维度枚举菜单(品类/口味/系列/标签)
 ```
 
-`menu discover` 用 ~50 个分类词系统查询,覆盖率约 60-70%(完整菜单需 App/小程序)。
+`menu discover` 用 38 个分类词(品类 20/口味 11/系列 5/标签 2)系统查询,覆盖率约 60-70%(完整菜单需 App/小程序)。
 
 ### `smart-luckin product` — 商品详情 + 规格切换
 
@@ -433,32 +427,37 @@ smart-luckin locate <地址> [--city 城市] [--limit N]
 
 ---
 
-## 内部封装的踩坑经验(对外透明)
+## 踩坑参考清单
+
+裸调瑞幸 MCP 的隐性坑(核心价值章节的展开参考,完整清单):
 
 | 坑 | CLI 如何处理 |
 |----|-------------|
 | `operation=3`(官方 schema 没标枚举) | switchProduct 内部硬编码 |
-| 链式 skuCode 更新 | `product switch` 自动链式,用户只给规格名 |
-| 冰热杯型 ID 不同(热 650 / 冰 594) | 自动读属性树动态匹配 |
+| 链式 skuCode 更新(每步用上一步新值) | `product switch` 自动链式,用户只给规格名 |
+| 冰热杯型 ID 体系不同(热特大杯 650 / 冰超大杯 594) | 自动读属性树动态匹配,换温度自动换杯型 ID |
 | `payOrderQrCodeUrl` 扫码失效 | 只用 `payOrderUrl` deeplink 生成二维码 |
-| Windows git-bash 中文编码 | 内部 requests 直发,绕开 shell |
-| couponCodeList 不能缓存 | `create_order_safe` 自动先 preview 取券 |
-| `deptName` 搜索 bug | 永远不带 deptName |
-| `deptId ≠ No.xxx` | 只用 queryShopList 返回的数字 ID |
-| 门店搜索服务波动 | 多店 fallback |
-| IP 定位在代理下失效 | locate 用高德 geocode/POI |
+| Windows git-bash 中文编码导致搜不到 | 内部 requests 直发,绕开 shell |
+| `couponCodeList` 不能缓存(每单券码不同) | `create_order_safe` 自动先 preview 取当次券 |
+| `deptName` 搜索 bug(带名字过滤反而搜不到) | 永远不带 deptName,只用坐标 |
+| `deptId ≠ No.xxx`(No.2723 是展示号非 deptId) | 只用 queryShopList 返回的数字 ID |
+| 门店搜索服务波动(部分门店 search 失效) | 多店 fallback |
+| 二次 json.loads(MCP 响应是字符串化 JSON) | client._call 内部自动二次解析 |
+| `isError:true` + Overflow(20 位订单号溢出) | client 优雅报错,不崩溃 |
 
 ---
 
 ## 作为 skill 给 Agent 用
 
-本 CLI 同时提供 skill 形态(`skill/SKILL.md`),Agent 可直接调用 `luckin` 命令而非裸调 MCP。
+本 CLI 同时提供 skill 形态(`skill/SKILL.md`),Agent 加载后可直接调用 `smart-luckin` 命令,而非裸调 MCP 8 个原子工具。
 
-价值:Agent 调裸 MCP 每次都要重新踩坑(operation 几?skuCode 怎么更新?二维码哪个字段?)。调 CLI 只需一条命令,踩坑经验在 CLI 内部固化。
+skill 的作用是告诉 Agent:**何时调 smart-luckin、调哪个子命令**。语义理解由 Agent 做,转译执行由 CLI 做——skill 是两者之间的接口说明。
 
-安装 skill:
+安装 skill(复制到 Agent 的 skills 目录):
 ```bash
-cp -r skill/luckin-coffee ~/.agents/skills/
+# ZCode / Claude Code 等(~/.agents/skills/)
+mkdir -p ~/.agents/skills/luckin-coffee
+cp skill/SKILL.md ~/.agents/skills/luckin-coffee/
 ```
 
 ---
