@@ -1,0 +1,24 @@
+# Secrets — 绝不提交
+.env
+.env.*
+*.token
+profile.json
+**/profile.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# 系统
+.DS_Store
+Thumbs.db
