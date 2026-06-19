@@ -3,9 +3,9 @@ requires = ["setuptools>=64", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "luckin-cli"
+name = "smart-luckin"
 version = "0.1.0"
-description = "瑞幸咖啡点单 CLI — 封装瑞幸 MCP 的踩坑经验,装完即用的语义化点单工具"
+description = "smart-luckin — 基于瑞幸官方 MCP/CLI 之上的点单封装,把 LLM 运行时编排前置固化为代码"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [{name = "AD207warlord"}]
@@ -29,7 +29,7 @@ classifiers = [
 smart-luckin = "luckin.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/AD207warlord/luckin-cli"
+Homepage = "https://github.com/AD207warlord/smart-luckin"
 
 [tool.setuptools.packages.find]
 where = ["src"]

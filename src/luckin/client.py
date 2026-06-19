@@ -39,7 +39,7 @@ class LuckinClient:
             "Content-Type": "application/json",
             "Accept": "application/json, text/event-stream",  # Streamable HTTP 必须,否则 400
             "Authorization": f"Bearer {self.token}",
-            "User-Agent": "luckin-cli/0.1",
+            "User-Agent": "smart-luckin/0.1",
         })
 
     def _next_id(self) -> int:

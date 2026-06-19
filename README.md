@@ -1,11 +1,12 @@
-# luckin-cli
+# smart-luckin
 
-> ☕ 瑞幸咖啡点单 CLI — 封装瑞幸 MCP 的踩坑经验,装完即用的命令行点单工具。
+> ☕ **基于瑞幸官方 MCP/CLI 之上的点单封装** — 把官方工具链的踩坑经验,固化成装完即用的命令行。
 >
-> 把"调瑞幸 MCP 需要知道 operation=3、链式 skuCode、二维码用 payOrderUrl、中文编码坑、高德定位..."这些隐性知识,全部固化成 CLI 内部逻辑。对外只暴露人类友好的命令。
+> 瑞幸官方 2026-06 上线 AI 开放平台,提供 MCP Server(8 个 JSON-RPC 工具)+ CLI(`luckin login` 刷 token)+ my-coffee skill 三件套。本 CLI **不是替代官方,是建立在官方 MCP 数据源之上**的编排封装层:复用官方 token 和 endpoint,把裸调 MCP 要踩的坑(operation 枚举/skuCode 链式/二维码字段/中文编码/定位...)预先固化进代码。
 
-> **📦 包名 `luckin-cli`,命令名 `smart-luckin`**。
-> 命令名刻意避开瑞幸官方 CLI(`luckin`,用于 `luckin login` 刷 token)的冲突。`pip install luckin-cli` 后用 `smart-luckin` 调用。
+> **📦 包名/仓库名/命令名统一 `smart-luckin`**。
+> 命令名刻意避开瑞幸官方 CLI(`luckin`,用于 `luckin login` 刷 token)的冲突。`pip install smart-luckin` 后用 `smart-luckin` 调用。
+> **Python import 名仍是 `luckin`**(内部模块结构),用户感知不到。
 
 ---
 
@@ -15,38 +16,65 @@
 
 **核心价值**:瑞幸 MCP 的 8 个工具裸调时,有大量隐性坑(operation 枚举没标、skuCode 要链式更新、二维码字段用错就失效、Windows 中文编码导致搜不到商品...)。这个 CLI 把踩坑经验全部封装掉,装完直接用。
 
-## 设计哲学:把 LLM 运行时编排,前置固化为代码
+## 定位:和 MCP 同层的工具,给上层 Agent 用
 
-瑞幸 MCP 提供了 8 个原子工具(queryShopList / searchProductForMcp / switchProduct / ...),但要完成一次点单,需要把这 8 个工具**编排**起来:定位 → 查店 → 搜商品 → 切规格 → 预览 → 下单 → 取券 → 二维码。这个编排层,有两条路:
+smart-luckin **不是和 LLM 竞争语义理解**,而是和**瑞幸 MCP 同层**的工具封装。理解这个三层架构,就理解了我们的位置:
 
-| 路径 | 编排者 | 代价 | 特点 |
+```
+┌─────────────────────────────────────────────────┐
+│  语义理解层(LLM Agent)                          │
+│  ZCode / Claude Code / 官方 luckin 内置的 GLM    │
+│  理解"来杯续命的" → 决定调什么工具               │
+└─────────────────────────────────────────────────┘
+                    ↓ 调用工具
+┌─────────────────────────────────────────────────┐
+│  工具层(smart-luckin 和 MCP 都在这一层!)       │
+│                                                 │
+│  路径 A:裸调 8 个 MCP 原子工具                  │
+│    Agent 要自己编排 + 踩 operation/skuCode 等坑  │
+│                                                 │
+│  路径 B:调 smart-luckin 命令(我们)            │
+│    编排和踩坑已固化,Agent 调一条命令即可        │
+└─────────────────────────────────────────────────┘
+                    ↓
+┌─────────────────────────────────────────────────┐
+│  数据源:瑞幸官方 MCP Server(两条路径共用)      │
+└─────────────────────────────────────────────────┘
+```
+
+**关键**:语义理解能力**不在 CLI 也不在 MCP,在 Agent**。当 ZCode/Claude 这类 Agent 调 smart-luckin 时,"来杯续命的"→ 加浓美式 这个理解是 Agent 做的,然后 Agent 调 `smart-luckin order daily`。能力链完整。官方 `luckin -p` 只是把 GLM **内置**进 CLI 了,那个内置 GLM 和外部 Agent 是平级的。
+
+## 宽泛表达:我们也能理解(靠 Agent + profile + 词表)
+
+| 用户说的 | 谁理解 | 怎么落地 | 实测 |
 |---|---|---|---|
-| **官方 `-p` / my-coffee skill** | LLM 运行时实时编排 | 每单烧 LLM token(实测 ~7 万 token/单) | 灵活(能理解"来杯续命的"),但黑盒、不稳、贵 |
-| **本 CLI** | 代码预编译编排 | 开发时设计成本(已沉没)+ Agent 理解 skill 的少量 token | 稳定、透明、可预测,但不灵活(要明确说商品) |
+| "来杯续命的" | Agent → profile 日常口味 | `order daily`(profile 存了加浓美式) | ✅ 1 秒 |
+| "来点清爽的果味" | Agent → 品类映射 | `menu search 果茶`(感官词→品类词) | ✅ 命中 3 款 |
+| "太甜了换少糖" | Agent → 规格词表 | `product switch --spec 少甜`(attrs.py 别名归一) | ✅ 词表支持 |
+| "大光明电影院冰茶饮" | Agent → 地名+品类拆解 | `locate` + `menu search`(组合命令) | ✅ 5 秒/4 选项 |
 
-**这不是"零 token",是"把运行时编排成本前置固化"**:
-- 开发阶段:设计这套封装所花的 token(包括和 AI 协作设计 locate/menu/order 逻辑)是**沉没成本**,摊到每次使用才划算
-- 运行阶段:代码执行本身**不烧 LLM token**(纯 Python 逻辑),但 Agent 要理解"何时调 smart-luckin、调哪个子命令",这部分理解 token 仍需支付
-- 我们省下的是:**每次下单时,LLM 实时推理如何编排工具的那笔大开销**(7 万 token → 接近 0)
+**我们不是"不能理解宽泛表达"**,而是把理解能力**分工**:Agent 负责自然语言→意图,CLI 负责意图→工具调用。这比官方"内置 GLM 包办一切"更灵活——你可以用任何 Agent(ZCode/Claude/GPT),不绑定瑞幸内置的 GLM。
 
-**权衡诚实说**:我们牺牲了灵活性(遇到"给我来杯续命的"这种模糊表达,代码不会变通,得用户明确说商品名),换来稳定性与可预测性。瑞幸加新品/改 API 时,我们要改代码跟进;官方靠 LLM 读新 schema 自动适应。对于"日常那杯"这种高频固定场景,稳定性 > 灵活性。
+## 实测对比:同任务三种路径(2026-06-19)
 
-## 裸测试基准:同一任务三种路径对比
+任务:"我在上海大光明电影院,想喝冰的茶饮,给我至少 3 个商品选项"
 
-任务:"我在上海大光明电影院,想喝冰的茶饮,给我至少 3 个商品选项"(2026-06-19 实测)
-
-| 维度 | 纯 MCP 裸调 | 官方 CLI + GLM(`-p`) | 本 CLI (smart-luckin) |
+| 维度 | 纯 MCP 裸调 | 官方 CLI + 内置 GLM(`-p`) | **Agent + smart-luckin** |
 |---|---|---|---|
-| **能完成?** | ❌ 缺 7 个编排能力 | ✅ | ✅ |
-| **LLM token** | 全人工编排 | 运行时烧(实测输出 72 万字符,推理流刷屏) | 开发时已沉没,运行时接近 0 |
-| **耗时** | 看人工 | ~2 分钟 | <5 秒 |
-| **结果质量** | — | 3 选项(其中 2 个是同款不同杯型,凑数) | 4 选项(橙C冰茶/轻轻茉莉/柠檬茶/杨枝甘露,不同风格) |
-| **可控性** | 全手动 | 黑盒(GLM 内部怎么调工具看不到全貌) | 透明(每步命令可见) |
-| **模糊表达** | ❌ | ✅ GLM 能理解"来杯续命的" | ❌ 要明确说商品 |
+| **架构位置** | 工具层(原子) | 工具层+内置LLM 一体化 | 工具层(封装)+ 外部 Agent |
+| **语义理解** | 无(靠外部 Agent) | 内置 GLM | 外部 Agent(ZCode 等) |
+| **能完成?** | ❌ 缺编排,要外部补 7 个能力 | ✅ | ✅ |
+| **LLM token** | 外部 Agent 自行编排 | 运行时烧(实测输出 72 万字符,推理流刷屏) | Agent 理解意图(单轮,量小)+ 命令直调零编排 token |
+| **耗时** | 看人工/Agent | **~2 分钟** | **<5 秒**(实测 1 秒完成 preview) |
+| **结果质量** | — | 3 选项(2 个同款凑数) | 4 选项(不同风格) |
+| **可控性** | 全手动 | 黑盒(GLM 内部不可见) | 透明(每步命令可见) |
+| **Agent 可换?** | 是 | ❌ 绑定内置 GLM | ✅ 任意 Agent(ZCode/Claude/GPT) |
 
-**官方 GLM 路线的真实优势**:它理解模糊表达("我困了来杯续命的"→ 加浓美式),这是我们代码做不到的。如果你的场景高度依赖自然语言模糊理解,官方 `-p` + LLM 更合适。如果你的场景是高频固定的(每天同一杯、同一店),本 CLI 更划算。
+**官方 `-p` 的真实优势**:一体化(内置 GLM,装完即用,不依赖外部 Agent)。如果你的环境没有 Agent,只有终端,官方 `-p` 更方便。
 
-> 本次裸测试用智谱 GLM Coding Plan(`open.bigmodel.cn/api/coding/paas/v4`),未被白名单拦截(与 Kimi Coding Plan 不同,智谱不限客户端)。这给"官方 CLI + LLM"路线打开了可用入口。
+**smart-luckin 的真实优势**:在已有 Agent 的环境(ZCode/Claude Code 等)下,编排固化 + 速度快 + Agent 可换 + 透明。省的是"每次实时编排工具"的开销(72 万字符 → 1 秒命令)。
+
+> 注:官方 `-p` 路线用智谱 GLM Coding Plan(`open.bigmodel.cn/api/coding/paas/v4`)实测,未被白名单拦截。这条路线对终端用户可用。
 
 ## 与官方 my-coffee skill 的关系
 
@@ -120,23 +148,40 @@
 
 ## 安装
 
-### 前置条件
+### 前置条件(环境要求)
 
-- Python 3.8+
-- 瑞幸账号(获取 MCP token)
-- 高德开放平台 key(免费,用于 `locate` 命令;可选)
+**必需环境**:
+
+| 项 | 要求 | 说明 |
+|---|---|---|
+| **Python** | 3.8+ | 推荐 3.10+,用 `python --version` 确认 |
+| **pip** | 任意可用版本 | 装依赖用 |
+| **瑞幸官方 CLI** | 已安装 | **必须先用它登录拿 token**(本 CLI 复用官方 token,不独立实现登录) |
+| **瑞幸账号** | 有效 | 通过官方 CLI `luckin login` 扫码授权 |
+
+**可选环境**:
+
+| 项 | 用途 | 缺失影响 |
+|---|---|---|
+| **高德开放平台 key** | `locate` 命令(模糊地址→门店) | `locate` 不可用,但 `order daily`/`shops` 等用已配置坐标,不受影响 |
+| **PATH 中的 Python Scripts 目录** | 直接打 `smart-luckin` 命令 | 需用 `python -m luckin` 或全路径调用 |
+
+**关键依赖说明**:本 CLI **建立在瑞幸官方工具链之上**,不替代官方:
+- **token 来源**:复用瑞幸官方 CLI(`luckin login`)写入的 `~/.luckin/.env`,不独立实现登录鉴权
+- **数据源**:直接调瑞幸官方 MCP Server(`gwmcp.lkcoffee.com`),不自建后端
+- **定位**:用高德(替代官方 skill 的 IP 粗定位,精度更高)
 
 ### 1. 安装 CLI
 
 ```bash
-pip install luckin-cli
+pip install smart-luckin
 ```
 
 或从源码:
 
 ```bash
-git clone https://github.com/AD207warlord/luckin-cli.git
-cd luckin-cli
+git clone https://github.com/AD207warlord/smart-luckin.git
+cd smart-luckin
 pip install -e .
 ```
 

@@ -16,9 +16,9 @@ from .commands import shops_group, menu_group, product_group, order_group, confi
 @click.version_option(__version__, prog_name="smart-luckin")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """☕ smart-luckin — 瑞幸咖啡点单 CLI。
+    """☕ smart-luckin — 基于瑞幸官方 MCP 的点单 CLI 封装。
 
-    封装瑞幸 MCP 的踩坑经验,装完即用。配置好后 `smart-luckin order daily` 一键下单。
+    和 MCP 同层(工具层),把裸调 8 工具的踩坑经验固化成命令。配置好后 `smart-luckin order daily` 一键下单。
 
     \b
     常用命令:

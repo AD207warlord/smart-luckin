@@ -1,10 +1,10 @@
 ---
 name: luckin-coffee
 description: |
-  通过 luckin-cli 命令行工具下单瑞幸咖啡。当用户想点瑞幸、买咖啡、点单,提到"luckin""瑞幸""来杯咖啡""续命""日常那杯"等,或想查询门店/订单/菜单时触发。CLI 内部封装了瑞幸 MCP 的全部踩坑经验(operation=3、链式 skuCode、payOrderUrl 二维码、中文编码、高德定位等),Agent 只需调 smart-luckin 命令,无需裸调 MCP 重新踩坑。已配置用户家门店与日常口味,支持一键复刻日常订单。
+  通过 smart-luckin 命令行工具下单瑞幸咖啡。当用户想点瑞幸、买咖啡、点单,提到"luckin""瑞幸""来杯咖啡""续命""日常那杯"等,或想查询门店/订单/菜单时触发。CLI 内部封装了瑞幸 MCP 的全部踩坑经验(operation=3、链式 skuCode、payOrderUrl 二维码、中文编码、高德定位等),Agent 只需调 smart-luckin 命令,无需裸调 MCP 重新踩坑。已配置用户家门店与日常口味,支持一键复刻日常订单。
 ---
 
-# Luckin Coffee — 瑞幸点单(通过 luckin-cli)
+# Luckin Coffee — 瑞幸点单(通过 smart-luckin)
 
 通过 `smart-luckin` 命令行工具完成瑞幸点单。CLI 封装了瑞幸 MCP 的全部踩坑经验,Agent 调命令即可,不必裸调 MCP。
 
