@@ -38,7 +38,7 @@ def _resolve_dept_and_coords(dept: int | None, locate: str | None) -> tuple[int,
         if detect_delivery_intent(locate):
             raise click.UsageError(
                 "⚠️ 瑞幸 MCP 不支持外送(createOrder 无 delivery/收货地址字段,仅到店自取)。\n"
-                "如需自提,请提供门店地址或坐标(如 '新华路664号')。"
+                "如需自提,请提供门店地址或坐标(如 'XX 路 123 号')。"
             )
         # 用高德定位
         from ..amap import AmapClient, AmapError
@@ -144,7 +144,7 @@ def order_group() -> None:
 @click.option("--product", "product_id", type=int, default=None, help="productId(不填用日常口味)")
 @click.option("--sku", "sku_code", default=None, help="skuCode(不填用日常口味配置)")
 @click.option("--dept", type=int, default=None, help="门店 deptId(不填用家门店)")
-@click.option("--locate", default=None, help="模糊地址定位(如 '宝山区新二路999弄')")
+@click.option("--locate", default=None, help="模糊地址定位(如 'XX 区 XX 路 999 弄')")
 @click.option("--amount", type=int, default=1, help="数量")
 def order_preview(product_id, sku_code, dept, locate, amount) -> None:
     """预览订单(拿价格 + 券码 + 取餐时间,不扣款)。"""

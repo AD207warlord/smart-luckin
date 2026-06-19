@@ -101,7 +101,7 @@ def format_order_status(order: dict) -> str:
 
 
 # 门店搜索服务波动时的 fallback 门店(已知可用,商品全国通用)
-FALLBACK_SEARCH_DEPTS = [16401, 380664, 390280]  # 长峰中心/三里屯SOHO/南辉小区
+FALLBACK_SEARCH_DEPTS = [16401, 380664, 390280]  # 占位 deptId(实际使用时用你账号能查到的门店)
 
 
 def _parse_hhmm(s: str) -> tuple[int, int] | None:

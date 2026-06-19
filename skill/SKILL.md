@@ -15,7 +15,7 @@ Agent 的意图              smart-luckin 转译         瑞幸 MCP 硬接口
 "清爽果味"        →     menu search 果茶      →   searchProductForMcp
 "少糖"            →     --spec 糖度=少甜       →   switchProduct(operation=3)
 "续命的"          →     order daily(profile)  →   createOrder
-"大光明电影院"    →     locate → 坐标          →   queryShopList(lng, lat)
+"XX 广场"         →     locate → 坐标          →   queryShopList(lng, lat)
 ```
 
 **Agent 负责理解用户意图,smart-luckin 负责把意图转译成瑞幸能收的参数**。你(ZCode/Claude 等 Agent)不需要查 operation 枚举、链式切 skuCode、背 attributeId、找经纬度——这些转译在 CLI 内部固化了。
@@ -51,7 +51,7 @@ smart-luckin order daily
 | "看新品" | → 新品池 | `smart-luckin menu new` |
 | "少糖""微糖""低糖" | → 糖度调整 | `smart-luckin product switch <id> --spec "少糖"` |
 | "大杯冰燕麦" | → 多维规格 | `smart-luckin product switch <id> --spec "大杯,冰,燕麦奶"` |
-| "大光明电影院" | → 地名 | `smart-luckin locate 大光明电影院`(高德→坐标→门店) |
+| "XX 商场/地标" | → 地名 | `smart-luckin locate "XX 商场"`(高德→坐标→门店) |
 
 `--spec` 支持 15 类属性词 + 口语别名(少糖/微糖/低糖/半糖/无糖/全糖 等),自动归一到瑞幸维度。
 

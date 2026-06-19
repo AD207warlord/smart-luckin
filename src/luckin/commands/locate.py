@@ -24,9 +24,9 @@ def locate_cmd(address: str, city: str, limit: int) -> None:
 
     \b
     示例:
-      smart-luckin locate 新华路664号
-      smart-luckin locate 万宝国际商务中心
-      smart-luckin locate 延安西路 --city 上海
+      smart-luckin locate "XX 路 123 号"
+      smart-luckin locate "XX 国际商务中心"
+      smart-luckin locate "XX 路" --city 上海
     """
     profile = load_profile()
 

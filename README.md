@@ -22,7 +22,7 @@ Agent 的意图              smart-luckin 转译         瑞幸 MCP 硬接口
 "清爽果味"        →     menu search 果茶      →   searchProductForMcp(query="果茶")
 "少糖"            →     --spec 糖度=少甜       →   switchProduct(subAttr=少甜, operation=3)
 "续命的"          →     order daily(profile)  →   createOrder(deptId, productList, lng, lat)
-"大光明电影院"    →     locate → 坐标          →   queryShopList(lng, lat)
+"XX 广场"         →     locate → 坐标          →   queryShopList(lng, lat)
 ```
 
 **不是什么**(诚实边界):
@@ -71,13 +71,13 @@ Agent 理解"少糖"没问题,但瑞幸 `switchProduct` 要的是 `attributeId` 
 
 ## 核心价值 2:地理软化(人类地址 → 瑞幸硬坐标)
 
-瑞幸 MCP 的 `queryShopList` / `createOrder` 都**强制要经纬度**(number 类型,必填)。但普通人不会报经纬度,Agent 拿到的也是"大光明电影院""新华路664号"这种人类地址。我们接高德 API 做软化:
+瑞幸 MCP 的 `queryShopList` / `createOrder` 都**强制要经纬度**(number 类型,必填)。但普通人不会报经纬度,Agent 拿到的也是"XX 商场""XX 路 123 号"这种人类地址。我们接高德 API 做软化:
 
 | 用户/Agent 说的 | 转译为(瑞幸硬坐标) | 高德 API |
 |---|---|---|
-| "大光明电影院"(地标) | `lng=121.474, lat=31.232` | POI 搜索(`/place/text`) |
-| "新华路664号"(门牌) | `lng=121.420, lat=31.205` | 地理编码(`/geocode/geo`) |
-| "延安西路"(模糊路段) | 路段中点坐标 + 候选门店列表 | 地理编码 + 跨区检测 |
+| "XX 广场"(地标) | `lng=121.474, lat=31.232`(示例) | POI 搜索(`/place/text`) |
+| "XX 路 123 号"(门牌) | `lng=121.420, lat=31.205`(示例) | 地理编码(`/geocode/geo`) |
+| "XX 路"(模糊路段) | 路段中点坐标 + 候选门店列表 | 地理编码 + 跨区检测 |
 | "日常那杯"(无地址) | profile 家门店坐标(配置一次复用) | 无需定位 |
 
 高德 key 免费申请([lbs.amap.com](https://lbs.amap.com/))。这是对比官方 my-coffee skill 的一个差异点——官方用 `ipinfo.io` IP 粗定位(代理/VPN 下失效,且只到城市级),我们用高德精准定位(精度 <50m)。
@@ -99,7 +99,7 @@ Agent 理解"少糖"没问题,但瑞幸 `switchProduct` 要的是 `attributeId` 
 
 ## 实测对比:同任务三种路径(2026-06-19)
 
-任务:"我在上海大光明电影院,想喝冰的茶饮,给我至少 3 个商品选项"
+任务:"我在上海某商圈,想喝冰的茶饮,给我至少 3 个商品选项"
 
 | 维度 | 纯 MCP 裸调 | 官方 CLI(`-p`,内置可配 LLM) | **Agent + smart-luckin** |
 |---|---|---|---|
@@ -281,14 +281,14 @@ smart-luckin order daily
 # → 查营业 → 显示价格 → 确认 → 下单 → 终端二维码 → 微信扫码支付
 
 # 找附近门店(模糊地址)
-smart-luckin locate 新华路664号
-smart-luckin locate 万宝国际商务中心
+smart-luckin locate "XX 路 123 号"
+smart-luckin locate "XX 国际商务中心"
 
 # 看新品
 smart-luckin menu new
 
 # 临时换门店换商品下单
-smart-luckin order create --locate "宝山区新二路999弄" --product 5509 --sku SP3929-00009
+smart-luckin order create --locate "XX 区 XX 路 999 弄" --product 5509 --sku SP3929-00009
 ```
 
 ---

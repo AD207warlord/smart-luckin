@@ -47,7 +47,7 @@ class AmapClient:
     def geocode(self, address: str, city: str = "") -> Optional[Location]:
         """地理编码:地址 → 坐标。
 
-        适合精确门牌("新华路664号")或模糊路段("延安西路")。
+        适合精确门牌("XX 路 123 号")或模糊路段("XX 路")。
         模糊路段返回的是中点坐标(is_fuzzy=True)。
         """
         params = {"address": address, "key": self.key}
@@ -84,7 +84,7 @@ class AmapClient:
     def poi_search(self, keyword: str, city: str = "") -> Optional[Location]:
         """POI 搜索:地标名 → 坐标 + 完整地址。
 
-        适合建筑物/大厦/广场名("万宝国际商务中心")。精度比 geocode 更高。
+        适合建筑物/大厦/广场名("XX 国际商务中心")。精度比 geocode 更高。
         """
         params = {"keywords": keyword, "key": self.key}
         if city:
