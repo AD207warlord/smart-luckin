@@ -12,48 +12,90 @@
 
 ## 这是什么
 
-一个独立的 Python CLI,通过瑞幸官方 MCP Server(`gwmcp.lkcoffee.com`)完成点单全流程:定位门店 → 查菜单 → 选规格 → 预览价格 → 下单 → 支付二维码 → 查订单/取消。
+smart-luckin 是 **Agent 和瑞幸 MCP 之间的转译层**。
 
-**核心价值**:瑞幸 MCP 的 8 个工具裸调时,有大量隐性坑(operation 枚举没标、skuCode 要链式更新、二维码字段用错就失效、Windows 中文编码导致搜不到商品...)。这个 CLI 把踩坑经验全部封装掉,装完直接用。
+瑞幸官方 MCP 提供了 8 个工具,但接口很"硬":要精确的 deptId/productId/skuCode/经纬度,不收自然语言。Agent(LLM)理解力很强,但它"想说的"和瑞幸"能收的"之间有 gap。smart-luckin 做的就是把这个 gap 填上——**把 Agent 的宽泛意图,转译成瑞幸能接受的精确参数**。
 
-## 定位:和 MCP 同层的工具,给上层 Agent 用
+```
+Agent 的意图              smart-luckin 转译         瑞幸 MCP 硬接口
+─────────────           ──────────────         ─────────────
+"清爽果味"        →     menu search 果茶      →   searchProductForMcp(query="果茶")
+"少糖"            →     --spec 糖度=少甜       →   switchProduct(subAttr=少甜, operation=3)
+"续命的"          →     order daily(profile)  →   createOrder(deptId, productList, lng, lat)
+"大光明电影院"    →     locate → 坐标          →   queryShopList(lng, lat)
+```
 
-smart-luckin **不是和 LLM 竞争语义理解**,而是和**瑞幸 MCP 同层**的工具封装。理解这个三层架构,就理解了我们的位置:
+**不是什么**(诚实边界):
+- 不替代 Agent 的语义理解(理解还是 Agent 做,我们做转译)
+- 不自建后端(数据源仍是瑞幸官方 MCP,token 复用官方 CLI 登录产物)
+- 不比官方"聪明"(我们是官方硬接口之上的转译层,互补关系)
+
+## 定位:三层架构
 
 ```
 ┌─────────────────────────────────────────────────┐
 │  语义理解层(LLM Agent)                          │
-│  ZCode / Claude Code / 官方 luckin 内置的 GLM    │
+│  ZCode / Claude Code / 官方 luckin 内置 LLM      │
 │  理解"来杯续命的" → 决定调什么工具               │
 └─────────────────────────────────────────────────┘
                     ↓ 调用工具
 ┌─────────────────────────────────────────────────┐
-│  工具层(smart-luckin 和 MCP 都在这一层!)       │
-│                                                 │
-│  路径 A:裸调 8 个 MCP 原子工具                  │
-│    Agent 要自己编排 + 踩 operation/skuCode 等坑  │
-│                                                 │
-│  路径 B:调 smart-luckin 命令(我们)            │
-│    编排和踩坑已固化,Agent 调一条命令即可        │
+│  转译层(smart-luckin 在这!)                    │
+│  把 Agent 的意图转译成瑞幸能收的精确参数          │
+│  · 语义转译(口语→品类/规格/SKU)                │
+│  · 地理软化(地址→坐标)                          │
+│  · 踩坑封装(operation/skuCode/二维码/编码)      │
 └─────────────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────────────┐
-│  数据源:瑞幸官方 MCP Server(两条路径共用)      │
+│  数据源:瑞幸官方 MCP Server(8 个原子工具)       │
 └─────────────────────────────────────────────────┘
 ```
 
-**关键**:语义理解能力**不在 CLI 也不在 MCP,在 Agent**。当 ZCode/Claude 这类 Agent 调 smart-luckin 时,"来杯续命的"→ 加浓美式 这个理解是 Agent 做的,然后 Agent 调 `smart-luckin order daily`。能力链完整。官方 `luckin -p` 是在 CLI 内置了一个 LLM(用户通过 `luckin models add` 自行配置,支持任意 OpenAI 兼容模型如 GLM/DeepSeek/Kimi 等),那个内置 LLM 和外部 Agent 是平级的——都是"语义理解层"。
+官方 `luckin -p` 走的是"CLI 内置 LLM 包办"(LLM 由用户 `luckin models add` 自行配置,支持任意 OpenAI 兼容模型如 GLM/DeepSeek/Kimi 等);smart-luckin 走的是"外部 Agent 理解 + 转译层执行"。两条路都能完成点单,差别在 LLM 放在哪一层。
 
-## 宽泛表达:我们也能理解(靠 Agent + profile + 词表)
+## 核心价值 1:语义转译(口语 → 瑞幸硬接口)
 
-| 用户说的 | 谁理解 | 怎么落地 | 实测 |
-|---|---|---|---|
-| "来杯续命的" | Agent → profile 日常口味 | `order daily`(profile 存了加浓美式) | ✅ 1 秒 |
-| "来点清爽的果味" | Agent → 品类映射 | `menu search 果茶`(感官词→品类词) | ✅ 命中 3 款 |
-| "太甜了换少糖" | Agent → 规格词表 | `product switch --spec 少甜`(attrs.py 别名归一) | ✅ 词表支持 |
-| "大光明电影院冰茶饮" | Agent → 地名+品类拆解 | `locate` + `menu search`(组合命令) | ✅ 5 秒/4 选项 |
+Agent 理解"少糖"没问题,但瑞幸 `switchProduct` 要的是 `attributeId` + `subAttr.attributeId` + `operation=3`(schema 没标 operation 枚举)。Agent 每次裸调都要查文档、链式切 skuCode。我们把这层转译固化:
 
-**我们不是"不能理解宽泛表达"**,而是把理解能力**分工**:Agent 负责自然语言→意图,CLI 负责意图→工具调用。官方 `luckin -p` 走的是"CLI 内置 LLM 包办",LLM 由用户自行配置(`luckin models add`,支持任意 OpenAI 兼容模型);smart-luckin 走的是"外部 Agent 理解 + CLI 执行"。两条路都能理解宽泛表达,差别在 LLM 放在哪一层。
+| Agent 说的 | 转译为(瑞幸硬接口) | 怎么做 |
+|---|---|---|
+| "少糖" | `switchProduct(糖度=少甜, operation=3)` | attrs.py 词表(15类+口语别名:少糖/微糖/低糖→少甜/微甜) |
+| "清爽果味" | `searchProductForMcp(query="果茶")` | menu search(感官词→品类词) |
+| "续命的" | `createOrder(日常口味)` | profile 存了日常 productId+skuCode |
+| "超大杯冰燕麦奶" | 链式 switch 出最终 skuCode | `--spec` 多维归一,Agent 不用查 attributeId |
+
+**关键**:我们做的是**收敛转译**,不是发散思考。Agent 的理解力不变(该发散该收敛由 Agent 决定),我们只负责把 Agent 已经想好的意图,"翻译"成瑞幸的硬接口语言。属性词表就是这本字典。
+
+> 实测(2026-06-19):`menu search 果茶` 命中 3 款;`parse_spec_text("少糖,冰")` → `{糖度:少甜, 温度:冰}` 转译正确。
+
+## 核心价值 2:地理软化(人类地址 → 瑞幸硬坐标)
+
+瑞幸 MCP 的 `queryShopList` / `createOrder` 都**强制要经纬度**(number 类型,必填)。但普通人不会报经纬度,Agent 拿到的也是"大光明电影院""新华路664号"这种人类地址。我们接高德 API 做软化:
+
+| 用户/Agent 说的 | 转译为(瑞幸硬坐标) | 高德 API |
+|---|---|---|
+| "大光明电影院"(地标) | `lng=121.474, lat=31.232` | POI 搜索(`/place/text`) |
+| "新华路664号"(门牌) | `lng=121.420, lat=31.205` | 地理编码(`/geocode/geo`) |
+| "延安西路"(模糊路段) | 路段中点坐标 + 候选门店列表 | 地理编码 + 跨区检测 |
+| "日常那杯"(无地址) | profile 家门店坐标(配置一次复用) | 无需定位 |
+
+高德 key 免费申请([lbs.amap.com](https://lbs.amap.com/))。这是对比官方 my-coffee skill 的一个差异点——官方用 `ipinfo.io` IP 粗定位(代理/VPN 下失效,且只到城市级),我们用高德精准定位(精度 <50m)。
+
+## 核心价值 3:支付二维码的 UI 适配
+
+瑞幸 `createOrder` 返回两个 URL,选哪个取决于**调用方的 UI 环境**:
+
+| 字段 | 类型 | 适合的场景 |
+|---|---|---|
+| `payOrderUrl` | `weixin://wxpay/bizpayurl?pr=xxx`(deeplink) | **Agent 开发环境**(ZCode/Claude Code 等 UI 能直接渲染图片) |
+| `payOrderQrCodeUrl` | 瑞幸中转页 URL | 纯终端(无图片渲染) |
+
+我们选 `payOrderUrl`:套一层二维码生成服务,渲染成 Markdown 图片(`![](api.qrserver.com?data=...)`),在 ZCode 这类 Agent 的 UI 预览区**直接显示可扫的二维码**。
+
+**为什么这么选**(开发态体验):在 Agent 开发环境里,扫码路径是 `UI 显示二维码 → 手机微信扫 → 进支付页`,**一步**。如果用中转页或纯链接,路径变成 `复制链接 → 转发到手机 → 手机浏览器打开 → 长按图片识别 → 再扫`,繁琐。`payOrderQrCodeUrl` 实测还会报"非法链接"(2026-06-19),所以弃用。
+
+> 这个选择是为 **Agent 开发态 UI** 优化的。如果你的环境是纯终端(无图片渲染),`payOrderUrl` 的 deeplink 可能不如中转页方便——届时可以加 `--no-qr` 只输出 URL。
 
 ## 实测对比:同任务三种路径(2026-06-19)
 
@@ -61,20 +103,18 @@ smart-luckin **不是和 LLM 竞争语义理解**,而是和**瑞幸 MCP 同层**
 
 | 维度 | 纯 MCP 裸调 | 官方 CLI(`-p`,内置可配 LLM) | **Agent + smart-luckin** |
 |---|---|---|---|
-| **架构位置** | 工具层(原子) | 工具层 + 内置 LLM 一体化 | 工具层(封装)+ 外部 Agent |
-| **语义理解** | 无(靠外部 Agent) | 内置 LLM(用户 `models add` 自配,支持任意 OpenAI 兼容) | 外部 Agent(ZCode/Claude 等) |
-| **能完成?** | ❌ 缺编排,要外部补 7 个能力 | ✅ | ✅ |
-| **LLM token** | 外部 Agent 自行编排 | 运行时烧(实测输出 72 万字符,推理流刷屏) | Agent 理解意图(单轮,量小)+ 命令直调零编排 token |
-| **耗时** | 看人工/Agent | **~2 分钟** | **<5 秒**(实测 1 秒完成 preview) |
-| **结果质量** | — | 3 选项(2 个同款凑数) | 4 选项(不同风格) |
-| **可控性** | 全手动 | 黑盒(GLM 内部不可见) | 透明(每步命令可见) |
-| **LLM 配置** | 外部 Agent 自带 | `luckin models add` 配任意 OpenAI 兼容模型 | 外部 Agent 自带 |
+| **定位** | 工具层(原子) | 工具层 + 内置 LLM 一体化 | 转译层 + 外部 Agent |
+| **能完成?** | 要外部补转译/定位/踩坑 | ✅ | ✅ |
+| **LLM token** | 外部 Agent 自行转译 | 运行时烧(实测输出 72 万字符) | Agent 理解意图(单轮)+ 转译层零 LLM token |
+| **耗时** | 看 Agent | **~2 分钟** | **<5 秒** |
+| **结果** | — | 3 选项(2 个同款凑数) | 4 选项(不同风格) |
 
-**官方 `-p` 的真实优势**:一体化(内置 LLM,装完配个模型 key 就能用,不依赖外部 Agent)。如果你的环境没有 Agent,只有终端,官方 `-p` 更方便。LLM 可配任意 OpenAI 兼容模型(GLM/DeepSeek/Kimi/GPT 等),不绑定特定厂商。
+**不夸大也不过谦**:
+- 官方 `-p` 的优势:**一体化**(内置 LLM,配个模型 key 就能用,不依赖外部 Agent)。LLM 可配任意 OpenAI 兼容模型,不绑定厂商。适合没有 Agent 的纯终端环境。
+- smart-luckin 的优势:**在已有 Agent 的环境下**,转译固化让 Agent 调用更直接(72 万字符 → 1 秒命令)。不重复造 LLM 的轮子,复用你已有的 Agent。
+- 共同基础:都建立在瑞幸官方 MCP 之上,token 都来自官方 CLI 登录。
 
-**smart-luckin 的真实优势**:在已有 Agent 的环境(ZCode/Claude Code 等)下,编排固化 + 速度快 + 透明。省的是"每次实时编排工具"的开销(72 万字符 → 1 秒命令)。不重复造 LLM 的轮子——复用你已有的 Agent。
-
-> 注:本次裸测试中,官方 `-p` 用智谱 GLM Coding Plan(`open.bigmodel.cn/api/coding/paas/v4`)配置,未被白名单拦截。官方 CLI 的 `models add` 支持任意 OpenAI 兼容模型,不限于 GLM。
+> 本次裸测试官方 `-p` 用智谱 GLM Coding Plan 配置,未被白名单拦截。官方 `models add` 支持任意 OpenAI 兼容模型,不限于 GLM。
 
 ## 与官方 my-coffee skill 的关系
 
