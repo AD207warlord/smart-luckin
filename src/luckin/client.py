@@ -184,11 +184,19 @@ class LuckinClient:
             if not attr:
                 continue  # 该商品无此维度,跳过
 
-            # 找匹配的属性值
+            # 找匹配的属性值:先精确匹配,再回退到包含匹配
+            # ⚠️ 不能只用包含匹配:"含轻咖" in "不含轻咖" 为 True,
+            # 会误匹配到默认的"不含轻咖"(selected=True)→ 触发"已选中"跳过 → 切换丢失。
+            subs = attr.get("productSubAttrs", [])
             sub = next(
-                (s for s in attr.get("productSubAttrs", []) if spec_value in s.get("attributeName", "")),
+                (s for s in subs if s.get("attributeName", "") == spec_value),
                 None,
             )
+            if sub is None:
+                sub = next(
+                    (s for s in subs if spec_value in s.get("attributeName", "")),
+                    None,
+                )
             if not sub:
                 continue  # 无此选项,跳过
 
