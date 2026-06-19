@@ -42,7 +42,7 @@ smart-luckin **不是和 LLM 竞争语义理解**,而是和**瑞幸 MCP 同层**
 └─────────────────────────────────────────────────┘
 ```
 
-**关键**:语义理解能力**不在 CLI 也不在 MCP,在 Agent**。当 ZCode/Claude 这类 Agent 调 smart-luckin 时,"来杯续命的"→ 加浓美式 这个理解是 Agent 做的,然后 Agent 调 `smart-luckin order daily`。能力链完整。官方 `luckin -p` 只是把 GLM **内置**进 CLI 了,那个内置 GLM 和外部 Agent 是平级的。
+**关键**:语义理解能力**不在 CLI 也不在 MCP,在 Agent**。当 ZCode/Claude 这类 Agent 调 smart-luckin 时,"来杯续命的"→ 加浓美式 这个理解是 Agent 做的,然后 Agent 调 `smart-luckin order daily`。能力链完整。官方 `luckin -p` 是在 CLI 内置了一个 LLM(用户通过 `luckin models add` 自行配置,支持任意 OpenAI 兼容模型如 GLM/DeepSeek/Kimi 等),那个内置 LLM 和外部 Agent 是平级的——都是"语义理解层"。
 
 ## 宽泛表达:我们也能理解(靠 Agent + profile + 词表)
 
@@ -53,28 +53,28 @@ smart-luckin **不是和 LLM 竞争语义理解**,而是和**瑞幸 MCP 同层**
 | "太甜了换少糖" | Agent → 规格词表 | `product switch --spec 少甜`(attrs.py 别名归一) | ✅ 词表支持 |
 | "大光明电影院冰茶饮" | Agent → 地名+品类拆解 | `locate` + `menu search`(组合命令) | ✅ 5 秒/4 选项 |
 
-**我们不是"不能理解宽泛表达"**,而是把理解能力**分工**:Agent 负责自然语言→意图,CLI 负责意图→工具调用。这比官方"内置 GLM 包办一切"更灵活——你可以用任何 Agent(ZCode/Claude/GPT),不绑定瑞幸内置的 GLM。
+**我们不是"不能理解宽泛表达"**,而是把理解能力**分工**:Agent 负责自然语言→意图,CLI 负责意图→工具调用。官方 `luckin -p` 走的是"CLI 内置 LLM 包办",LLM 由用户自行配置(`luckin models add`,支持任意 OpenAI 兼容模型);smart-luckin 走的是"外部 Agent 理解 + CLI 执行"。两条路都能理解宽泛表达,差别在 LLM 放在哪一层。
 
 ## 实测对比:同任务三种路径(2026-06-19)
 
 任务:"我在上海大光明电影院,想喝冰的茶饮,给我至少 3 个商品选项"
 
-| 维度 | 纯 MCP 裸调 | 官方 CLI + 内置 GLM(`-p`) | **Agent + smart-luckin** |
+| 维度 | 纯 MCP 裸调 | 官方 CLI(`-p`,内置可配 LLM) | **Agent + smart-luckin** |
 |---|---|---|---|
-| **架构位置** | 工具层(原子) | 工具层+内置LLM 一体化 | 工具层(封装)+ 外部 Agent |
-| **语义理解** | 无(靠外部 Agent) | 内置 GLM | 外部 Agent(ZCode 等) |
+| **架构位置** | 工具层(原子) | 工具层 + 内置 LLM 一体化 | 工具层(封装)+ 外部 Agent |
+| **语义理解** | 无(靠外部 Agent) | 内置 LLM(用户 `models add` 自配,支持任意 OpenAI 兼容) | 外部 Agent(ZCode/Claude 等) |
 | **能完成?** | ❌ 缺编排,要外部补 7 个能力 | ✅ | ✅ |
 | **LLM token** | 外部 Agent 自行编排 | 运行时烧(实测输出 72 万字符,推理流刷屏) | Agent 理解意图(单轮,量小)+ 命令直调零编排 token |
 | **耗时** | 看人工/Agent | **~2 分钟** | **<5 秒**(实测 1 秒完成 preview) |
 | **结果质量** | — | 3 选项(2 个同款凑数) | 4 选项(不同风格) |
 | **可控性** | 全手动 | 黑盒(GLM 内部不可见) | 透明(每步命令可见) |
-| **Agent 可换?** | 是 | ❌ 绑定内置 GLM | ✅ 任意 Agent(ZCode/Claude/GPT) |
+| **LLM 配置** | 外部 Agent 自带 | `luckin models add` 配任意 OpenAI 兼容模型 | 外部 Agent 自带 |
 
-**官方 `-p` 的真实优势**:一体化(内置 GLM,装完即用,不依赖外部 Agent)。如果你的环境没有 Agent,只有终端,官方 `-p` 更方便。
+**官方 `-p` 的真实优势**:一体化(内置 LLM,装完配个模型 key 就能用,不依赖外部 Agent)。如果你的环境没有 Agent,只有终端,官方 `-p` 更方便。LLM 可配任意 OpenAI 兼容模型(GLM/DeepSeek/Kimi/GPT 等),不绑定特定厂商。
 
-**smart-luckin 的真实优势**:在已有 Agent 的环境(ZCode/Claude Code 等)下,编排固化 + 速度快 + Agent 可换 + 透明。省的是"每次实时编排工具"的开销(72 万字符 → 1 秒命令)。
+**smart-luckin 的真实优势**:在已有 Agent 的环境(ZCode/Claude Code 等)下,编排固化 + 速度快 + 透明。省的是"每次实时编排工具"的开销(72 万字符 → 1 秒命令)。不重复造 LLM 的轮子——复用你已有的 Agent。
 
-> 注:官方 `-p` 路线用智谱 GLM Coding Plan(`open.bigmodel.cn/api/coding/paas/v4`)实测,未被白名单拦截。这条路线对终端用户可用。
+> 注:本次裸测试中,官方 `-p` 用智谱 GLM Coding Plan(`open.bigmodel.cn/api/coding/paas/v4`)配置,未被白名单拦截。官方 CLI 的 `models add` 支持任意 OpenAI 兼容模型,不限于 GLM。
 
 ## 与官方 my-coffee skill 的关系
 
