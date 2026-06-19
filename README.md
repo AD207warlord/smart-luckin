@@ -224,7 +224,7 @@ smart-luckin menu discover --limit 100
 | 项 | 用途 | 缺失影响 |
 |---|---|---|
 | **高德开放平台 key** | `locate` 命令(模糊地址→门店) | `locate` 不可用,但 `order daily`/`shops` 等用已配置坐标,不受影响 |
-| **PATH 中的 Python Scripts 目录** | 直接打 `smart-luckin` 命令 | 需用 `python -m luckin` 或全路径调用 |
+| **PATH 中的 Python Scripts 目录** | 直接打 `smart-luckin` 命令 | Windows 常见问题,见下文「装完命令找不到」排错;macOS/Linux 一般无此问题 |
 
 **关键依赖说明**:本 CLI **建立在瑞幸官方工具链之上**,不替代官方:
 - **token 来源**:复用瑞幸官方 CLI(`luckin login`)写入的 `~/.luckin/.env`,不独立实现登录鉴权
@@ -244,6 +244,50 @@ git clone https://github.com/AD207warlord/smart-luckin.git
 cd smart-luckin
 pip install -e .
 ```
+
+#### ⚠️ 装完命令找不到?(Windows 常见)
+
+`pip install` 会把 `smart-luckin` 命令装到 Python 的 Scripts 目录。**该目录是否在 PATH 决定你能否直接调用**。Windows 下如果 Python 安装时没勾"Add to PATH",或用了 `pip install --user`,命令可能找不到。
+
+验证命令是否可用:
+
+```bash
+smart-luckin --version
+# 若报"command not found",用以下任一方案:
+```
+
+**方案 A:用 pipx(推荐,自动处理 PATH)**
+
+[pipx](https://pypa.github.io/pipx/) 专门装 CLI 工具,自动隔离环境 + 把命令加到 PATH:
+
+```bash
+pip install pipx
+pipx install smart-luckin
+# pipx 会自动把命令加到 ~/.local/bin(已在 PATH)
+```
+
+**方案 B:手动把 Python Scripts 加到 PATH**
+
+```bash
+# 找到 Scripts 目录(pip install 装命令的地方)
+python -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+
+# Windows(PowerShell,把上面的路径填进去)
+[Environment]::SetEnvironmentVariable('Path', $env:Path + ';<Scripts路径>', 'User')
+# 改完需重启终端/编辑器才生效
+
+# macOS/Linux(通常 ~/.local/bin 已在 PATH,无需此步)
+```
+
+**方案 C:用 `python -m`(不依赖 PATH,通用兜底)**
+
+```bash
+python -m luckin --version
+python -m luckin order daily
+# 把所有 smart-luckin xxx 换成 python -m luckin xxx
+```
+
+> macOS/Linux 用户一般不会遇到此问题(`pip install --user` 装到 `~/.local/bin`,通常已在 PATH)。Windows 用户建议用方案 A(pipx)或确保 Python 安装时勾了"Add to PATH"。
 
 ### 2. 获取瑞幸 token
 
