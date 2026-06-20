@@ -249,7 +249,7 @@ def order_create(product_id, sku_code, dept, locate, amount, yes, no_qr) -> None
             click.echo()
             click.echo(f"(图片打不开?复制此链接到浏览器: {qr_url})")
         click.echo()
-        click.echo("支付完成后:smart-luckin order status " + order_id)
+        click.echo(f"支付完成后:smart-luckin order status {order_id}")
 
 
 @order_group.command(name="status")
